@@ -1,153 +1,116 @@
-# LLM Chat Application Template
+Cloudflare Workers AI Chat (KV Memory + Reset)
 
-A simple, ready-to-deploy chat application template powered by Cloudflare Workers AI. This template provides a clean starting point for building AI chat applications with streaming responses.
+A simple chat app running on Cloudflare Workers AI with KV-backed memory and two ways to clear it:
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/templates/tree/main/llm-chat-app-template)
+POST /api/reset
 
-<!-- dash-content-start -->
+Sending /reset as the last user message to /api/chat
 
-## Demo
+Live worker (replace with yours if you fork):
+https://edge-chat.prashanthyalamanchili1.workers.dev/
 
-This template demonstrates how to build an AI-powered chat interface using Cloudflare Workers AI with streaming responses. It features:
+Prerequisites
 
-- Real-time streaming of AI responses using Server-Sent Events (SSE)
-- Easy customization of models and system prompts
-- Support for AI Gateway integration
-- Clean, responsive UI that works on mobile and desktop
+Cloudflare account with a workers.dev subdomain
 
-## Features
+Access to Workers AI
 
-- 💬 Simple and responsive chat interface
-- ⚡ Server-Sent Events (SSE) for streaming responses
-- 🧠 Powered by Cloudflare Workers AI LLMs
-- 🛠️ Built with TypeScript and Cloudflare Workers
-- 📱 Mobile-friendly design
-- 🔄 Maintains chat history on the client
-- 🔎 Built-in Observability logging
-<!-- dash-content-end -->
+A KV namespace created for chat history (e.g. chat_history_prod)
 
-## Getting Started
+Required Bindings
 
-### Prerequisites
+In Workers & Pages → Your Worker → Settings → Bindings, add:
 
-- [Node.js](https://nodejs.org/) (v18 or newer)
-- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/)
-- A Cloudflare account with Workers AI access
+Type	Name	Value / Notes
+Workers AI	AI	Select Workers AI Catalog
+KV Namespace	CHAT_HISTORY	Select your KV namespace (e.g. chat_history_prod)
+Assets	ASSETS	Static assets (bundled UI)
 
-### Installation
+Compatibility:
 
-1. Clone this repository:
+Set a recent Compatibility date in Settings → Runtime.
 
-   ```bash
-   git clone https://github.com/cloudflare/templates.git
-   cd templates/llm-chat-app
-   ```
+If you used it during setup, enable nodejs_compat under Compatibility flags.
 
-2. Install dependencies:
+Deploy (via Dashboard)
 
-   ```bash
-   npm install
-   ```
+Import this repo in Cloudflare: Workers & Pages → Create → Import a repository.
 
-3. Generate Worker type definitions:
-   ```bash
-   npm run cf-typegen
-   ```
+After the first deploy, go to Settings → Bindings and add the three bindings shown above.
 
-### Development
+Click Deploy version.
 
-Start a local development server:
+Deploy (via Wrangler) – optional
+npm i -g wrangler
+wrangler login
 
-```bash
-npm run dev
-```
+# Create your KV namespace
+wrangler kv namespace create chat_history_prod
 
-This will start a local server at http://localhost:8787.
+# Deploy
+wrangler deploy
 
-Note: Using Workers AI accesses your Cloudflare account even during local development, which will incur usage charges.
 
-### Deployment
+Ensure your wrangler.toml or dashboard bindings include: AI, CHAT_HISTORY, and ASSETS.
 
-Deploy to Cloudflare Workers:
+API Endpoints
+POST /api/chat
 
-```bash
-npm run deploy
-```
+Sends messages to the model.
+If the last user message is "/reset", the Worker clears KV and replies with Memory reset ✅.
 
-### Monitor
+Example:
 
-View real-time logs associated with any deployed Worker:
+curl -X POST "https://edge-chat.prashanthyalamanchili1.workers.dev/api/chat" \
+  -H "content-type: application/json" \
+  -d '{
+    "messages": [
+      {"role":"user","content":"Say hello!"}
+    ]
+  }'
 
-```bash
-npm wrangler tail
-```
 
-## Project Structure
+Reset via chat (send /reset as the last message):
 
-```
-/
-├── public/             # Static assets
-│   ├── index.html      # Chat UI HTML
-│   └── chat.js         # Chat UI frontend script
-├── src/
-│   ├── index.ts        # Main Worker entry point
-│   └── types.ts        # TypeScript type definitions
-├── test/               # Test files
-├── wrangler.jsonc      # Cloudflare Worker configuration
-├── tsconfig.json       # TypeScript configuration
-└── README.md           # This documentation
-```
+curl -X POST "https://edge-chat.prashanthyalamanchili1.workers.dev/api/chat" \
+  -H "content-type: application/json" \
+  -d '{
+    "messages": [
+      {"role":"user","content":"/reset"}
+    ]
+  }'
 
-## How It Works
+POST /api/reset
 
-### Backend
+Clears KV memory directly.
 
-The backend is built with Cloudflare Workers and uses the Workers AI platform to generate responses. The main components are:
+curl -X POST "https://edge-chat.prashanthyalamanchili1.workers.dev/api/reset"
+# => {"success":true}
 
-1. **API Endpoint** (`/api/chat`): Accepts POST requests with chat messages and streams responses
-2. **Streaming**: Uses Server-Sent Events (SSE) for real-time streaming of AI responses
-3. **Workers AI Binding**: Connects to Cloudflare's AI service via the Workers AI binding
+Configuration (optional)
 
-### Frontend
+Edit in src/index.ts if you want to customize:
 
-The frontend is a simple HTML/CSS/JavaScript application that:
+const MODEL_ID = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+const SYSTEM_PROMPT = "You are a helpful, friendly assistant. Provide concise and accurate responses.";
+const KV_KEY = "conversation"; // Single key used to store chat history
 
-1. Presents a chat interface
-2. Sends user messages to the API
-3. Processes streaming responses in real-time
-4. Maintains chat history on the client side
+Quick Checks
 
-## Customization
+Visiting / shows the chat UI.
 
-### Changing the Model
+POST /api/chat returns a model response.
 
-To use a different AI model, update the `MODEL_ID` constant in `src/index.ts`. You can find available models in the [Cloudflare Workers AI documentation](https://developers.cloudflare.com/workers-ai/models/).
+POST /api/reset returns {"success": true}.
 
-### Using AI Gateway
+Sending /reset as the last user message to /api/chat clears memory.
 
-The template includes commented code for AI Gateway integration, which provides additional capabilities like rate limiting, caching, and analytics.
+Troubleshooting
 
-To enable AI Gateway:
+405 Method not allowed on /api/reset: Use POST, not GET.
 
-1. [Create an AI Gateway](https://dash.cloudflare.com/?to=/:account/ai/ai-gateway) in your Cloudflare dashboard
-2. Uncomment the gateway configuration in `src/index.ts`
-3. Replace `YOUR_GATEWAY_ID` with your actual AI Gateway ID
-4. Configure other gateway options as needed:
-   - `skipCache`: Set to `true` to bypass gateway caching
-   - `cacheTtl`: Set the cache time-to-live in seconds
+“Cannot read properties of undefined (reading 'fetch')” / asset errors: Ensure the ASSETS binding exists.
 
-Learn more about [AI Gateway](https://developers.cloudflare.com/ai-gateway/).
+Model/AI errors: Ensure the AI binding is configured.
 
-### Modifying the System Prompt
-
-The default system prompt can be changed by updating the `SYSTEM_PROMPT` constant in `src/index.ts`.
-
-### Styling
-
-The UI styling is contained in the `<style>` section of `public/index.html`. You can modify the CSS variables at the top to quickly change the color scheme.
-
-## Resources
-
-- [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
-- [Cloudflare Workers AI Documentation](https://developers.cloudflare.com/workers-ai/)
-- [Workers AI Models](https://developers.cloudflare.com/workers-ai/models/)
+KV not clearing: Confirm CHAT_HISTORY is bound to your KV namespace and your compatibility date is recent.
